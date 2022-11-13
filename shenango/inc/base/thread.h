@@ -83,6 +83,7 @@ extern __thread unsigned int thread_numa_node;
 /**
  * returns the tid
  */
+#if !defined(_GNU_SOURCE) || !defined(__GLIBC__) || __GLIBC__ < 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ < 30)
 static inline pid_t gettid(void)
 {
 	pid_t tid;
@@ -95,3 +96,4 @@ static inline pid_t gettid(void)
 
 	return tid;
 }
+#endif
