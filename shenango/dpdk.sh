@@ -22,6 +22,8 @@ elif lspci | grep -q 'ConnectX-3'; then
     sed -i 's/CONFIG_RTE_LIBRTE_MLX4_PMD=n/CONFIG_RTE_LIBRTE_MLX4_PMD=y/g' dpdk/config/common_base
 fi
 
+patch -p 1 -d dpdk/ < linux_5_4.patch
+
 # Configure/compile dpdk
 make -C dpdk/ config T=x86_64-native-linuxapp-gcc
 make -C dpdk/ -j

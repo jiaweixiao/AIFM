@@ -1,0 +1,135 @@
+From 5f27b156b2a2cbf6a6efe874c0d67d4fa536ee77 Mon Sep 17 00:00:00 2001
+From: jiaweixiao <jiawxiao@gmail.com>
+Date: Sun, 13 Nov 2022 15:27:26 +0800
+Subject: [PATCH] fix: build error with kernel 5.4.0 and gcc 9.4.0
+
+---
+ drivers/bus/fslmc/fslmc_bus.c                 | 4 ++--
+ drivers/net/ixgbe/ixgbe_rxtx.c                | 2 +-
+ drivers/raw/dpaa2_cmdif/dpaa2_cmdif.c         | 3 ++-
+ drivers/raw/skeleton_rawdev/skeleton_rawdev.c | 6 ++++--
+ kernel/linux/igb_uio/igb_uio.c                | 6 +++---
+ mk/toolchain/gcc/rte.vars.mk                  | 4 ++++
+ 6 files changed, 16 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/bus/fslmc/fslmc_bus.c b/drivers/bus/fslmc/fslmc_bus.c
+index 89af9385a6..190509b190 100644
+--- a/drivers/bus/fslmc/fslmc_bus.c
++++ b/drivers/bus/fslmc/fslmc_bus.c
+@@ -195,7 +195,7 @@ scan_one_fslmc_device(char *dev_name)
+ 
+ 	t_ptr = strtok(NULL, ".");
+ 	if (!t_ptr) {
+-		DPAA2_BUS_ERR("Incorrect device string observed (%s)", t_ptr);
++		DPAA2_BUS_ERR("Incorrect device string observed");
+ 		goto cleanup;
+ 	}
+ 
+@@ -256,7 +256,7 @@ rte_fslmc_parse(const char *name, void *addr)
+ 
+ 	t_ptr = strchr(name, '.');
+ 	if (!t_ptr) {
+-		DPAA2_BUS_ERR("Incorrect device string observed (%s)", t_ptr);
++		DPAA2_BUS_ERR("Incorrect device string observed");
+ 		return -EINVAL;
+ 	}
+ 
+diff --git a/drivers/net/ixgbe/ixgbe_rxtx.c b/drivers/net/ixgbe/ixgbe_rxtx.c
+index 22f1e6172e..e69507c357 100644
+--- a/drivers/net/ixgbe/ixgbe_rxtx.c
++++ b/drivers/net/ixgbe/ixgbe_rxtx.c
+@@ -2029,7 +2029,7 @@ ixgbe_recv_pkts_lro(void *rx_queue, struct rte_mbuf **rx_pkts, uint16_t nb_pkts,
+ 		struct ixgbe_rx_entry *next_rxe = NULL;
+ 		struct rte_mbuf *first_seg;
+ 		struct rte_mbuf *rxm;
+-		struct rte_mbuf *nmb;
++		struct rte_mbuf *nmb = NULL;
+ 		union ixgbe_adv_rx_desc rxd;
+ 		uint16_t data_len;
+ 		uint16_t next_id;
+diff --git a/drivers/raw/dpaa2_cmdif/dpaa2_cmdif.c b/drivers/raw/dpaa2_cmdif/dpaa2_cmdif.c
+index 469960a3e5..5ae552e1f1 100644
+--- a/drivers/raw/dpaa2_cmdif/dpaa2_cmdif.c
++++ b/drivers/raw/dpaa2_cmdif/dpaa2_cmdif.c
+@@ -275,7 +275,8 @@ dpaa2_cmdif_remove(struct rte_vdev_device *vdev)
+ 
+ 	name = rte_vdev_device_name(vdev);
+ 
+-	DPAA2_CMDIF_INFO("Closing %s on NUMA node %d", name, rte_socket_id());
++	DPAA2_CMDIF_INFO("Closing %s on NUMA node %d", (name ? name : "NULL"),
++		rte_socket_id());
+ 
+ 	ret = dpaa2_cmdif_destroy(name);
+ 
+diff --git a/drivers/raw/skeleton_rawdev/skeleton_rawdev.c b/drivers/raw/skeleton_rawdev/skeleton_rawdev.c
+index d7630fc698..b7aa5cbf36 100644
+--- a/drivers/raw/skeleton_rawdev/skeleton_rawdev.c
++++ b/drivers/raw/skeleton_rawdev/skeleton_rawdev.c
+@@ -712,7 +712,8 @@ skeleton_rawdev_probe(struct rte_vdev_device *vdev)
+ 		return -EINVAL;
+ 	}
+ 
+-	SKELETON_PMD_INFO("Init %s on NUMA node %d", name, rte_socket_id());
++	SKELETON_PMD_INFO("Init %s on NUMA node %d", (name ? name : "NULL"),
++		rte_socket_id());
+ 
+ 	selftest = skeldev_parse_vdev_args(vdev);
+ 	/* In case of invalid argument, selftest != 1; ignore other values */
+@@ -741,7 +742,8 @@ skeleton_rawdev_remove(struct rte_vdev_device *vdev)
+ 
+ 	name = rte_vdev_device_name(vdev);
+ 
+-	SKELETON_PMD_INFO("Closing %s on NUMA node %d", name, rte_socket_id());
++	SKELETON_PMD_INFO("Closing %s on NUMA node %d", (name ? name : "NULL"),
++		rte_socket_id());
+ 
+ 	ret = skeleton_rawdev_destroy(name);
+ 	if (!ret)
+diff --git a/kernel/linux/igb_uio/igb_uio.c b/kernel/linux/igb_uio/igb_uio.c
+index 3cf394bdf7..039f5a5f63 100644
+--- a/kernel/linux/igb_uio/igb_uio.c
++++ b/kernel/linux/igb_uio/igb_uio.c
+@@ -236,7 +236,7 @@ igbuio_pci_enable_interrupts(struct rte_uio_pci_dev *udev)
+ 		}
+ #endif
+ 
+-	/* fall back to MSI */
++	/* falls through - to MSI */
+ 	case RTE_INTR_MODE_MSI:
+ #ifndef HAVE_ALLOC_IRQ_VECTORS
+ 		if (pci_enable_msi(udev->pdev) == 0) {
+@@ -255,7 +255,7 @@ igbuio_pci_enable_interrupts(struct rte_uio_pci_dev *udev)
+ 			break;
+ 		}
+ #endif
+-	/* fall back to INTX */
++	/* falls through - to INTX */
+ 	case RTE_INTR_MODE_LEGACY:
+ 		if (pci_intx_mask_supported(udev->pdev)) {
+ 			dev_dbg(&udev->pdev->dev, "using INTX");
+@@ -265,7 +265,7 @@ igbuio_pci_enable_interrupts(struct rte_uio_pci_dev *udev)
+ 			break;
+ 		}
+ 		dev_notice(&udev->pdev->dev, "PCI INTX mask not supported\n");
+-	/* fall back to no IRQ */
++	/* falls through - to no IRQ */
+ 	case RTE_INTR_MODE_NONE:
+ 		udev->mode = RTE_INTR_MODE_NONE;
+ 		udev->info.irq = UIO_IRQ_NONE;
+diff --git a/mk/toolchain/gcc/rte.vars.mk b/mk/toolchain/gcc/rte.vars.mk
+index d8b99faf6c..61032bbbc1 100644
+--- a/mk/toolchain/gcc/rte.vars.mk
++++ b/mk/toolchain/gcc/rte.vars.mk
+@@ -87,5 +87,9 @@ WERROR_FLAGS += -Wimplicit-fallthrough=2
+ WERROR_FLAGS += -Wno-format-truncation
+ endif
+ 
++#Report "taking address of packed member may result
++#in an unaligned pointer value" issues as warnings.
++WERROR_FLAGS += -Wno-error=address-of-packed-member
++
+ export CC AS AR LD OBJCOPY OBJDUMP STRIP READELF
+ export TOOLCHAIN_CFLAGS TOOLCHAIN_LDFLAGS TOOLCHAIN_ASFLAGS
+-- 
+2.25.1
+
