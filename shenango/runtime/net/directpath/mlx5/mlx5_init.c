@@ -335,7 +335,9 @@ int mlx5_common_init(struct hardware_q **rxq_out, struct direct_txq **txq_out,
 
 	i = 0;
 	while ((ib_dev = dev_list[i])) {
-		if (strncmp(ibv_get_device_name(ib_dev), "mlx5_3", 6) == 0)
+		log_info("mlx5_init: find IB dev : %s",
+			ibv_get_device_name(ib_dev));
+		if (strncmp(ibv_get_device_name(ib_dev), "mlx5", 4) == 0)
 			break;
 		i++;
 	}
@@ -344,6 +346,8 @@ int mlx5_common_init(struct hardware_q **rxq_out, struct direct_txq **txq_out,
 		log_err("mlx5_init: IB device not found");
 		return -1;
 	}
+	log_info("mlx5_init: use IB device %s",
+		ibv_get_device_name(ib_dev));
 
 	attr.flags = use_rss ? 0 : MLX5DV_CONTEXT_FLAGS_DEVX;
 	context = mlx5dv_open_device(ib_dev, &attr);
