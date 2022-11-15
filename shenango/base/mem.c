@@ -90,12 +90,10 @@ __mem_map_anom(void *base, size_t len, size_t pgsize,
 	addr = mmap(base, len, PROT_READ | PROT_WRITE, flags, -1, 0);
 	if (addr == MAP_FAILED)
 		return MAP_FAILED;
-
 	BUILD_ASSERT(sizeof(unsigned long) * 8 >= NNUMA);
 	if (mbind(addr, len, numa_policy, mask ? mask : NULL,
-		  mask ? NNUMA : 0, MPOL_MF_STRICT | MPOL_MF_MOVE))
+		  mask ? NNUMA + 1: 0, MPOL_MF_STRICT | MPOL_MF_MOVE))
 		goto fail;
-
 	touch_mapping(addr, len, pgsize);
 	return addr;
 
