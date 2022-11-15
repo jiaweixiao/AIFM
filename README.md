@@ -10,7 +10,6 @@ Currently, AIFM supports C++ and TCP-enabled remote server memory.
   * [Paper](#paper)
   * [Supported Platform](#supported-platform)
   * [Build Instructions](#build-instructions)
-    + [Configure Cloudlab Instances](#configure-cloudlab-instances)
     + [Install Dependencies (on all nodes)](#install-dependencies-on-all-nodes)
     + [Build Shenango and AIFM (on all nodes)](#build-shenango-and-aifm-on-all-nodes)
     + [Setup Shenango (on all nodes)](#setup-shenango-on-all-nodes)
@@ -28,37 +27,58 @@ The 14th USENIX Symposium on Operating Systems Design and Implementation (OSDI â
 
 ## Supported Platform
 
-We strongly recommend you to run AIFM using the xl170 instance of [Cloudlab](https://www.cloudlab.us/) as the code has been throughly tested there. We haven't done any test in other hardware environment. If you have trouble applying an cloudlab account, please contact us for assistance.
+Ubuntu 20.04, linux 5.4.0, gcc 9.4.0
 
 ## Build Instructions
-### Configure Cloudlab Instances
-
-1) Apply a Cloudlab account if you do not have one.
-
-2) Now you have logged into Cloublab console. Click `Experiments`|-->`Create Experiment Profile`. Upload `cloudlab.profile` provided in this repo root.
-
-3) Create a two-node instance using the profile. 
 
 ### Install Dependencies (on all nodes)
-Now you have logged into your Cloudlab instances. You have to install the necessary dependencies in order to build AIFM. Note you have to do run those steps on all Cloudlab nodes you have created.
+You have to install the necessary dependencies in order to build AIFM. Note you have to do run those steps on all nodes.
 
-1) Update package database and Linux kernel version.
+1) Enable monitor/mwait.
+
+Enable monitor/mwait in BIOS.
+
+Reboot and check it with
 ```
-sudo apt-get update
-echo Y | sudo apt-get install linux-headers-5.0.0-20 linux-headers-5.0.0-20-generic linux-hwe-edge-tools-5.0.0-20 linux-image-5.0.0-20-generic linux-modules-5.0.0-20-generic linux-tools-5.0.0-20-generic
-sudo reboot
+lscpu | grep monitor
 ```
 
-2) Install Mellanox OFED.
+2) Enable intel idle driver.
+
+Make sure `idle=poll/hlt/nomwait` is not set in kernel cmdline in file `/etc/default/grub`.
+
+Check current driver with
 ```
-wget "http://content.mellanox.com/ofed/MLNX_OFED-4.6-1.0.1.1/MLNX_OFED_LINUX-4.6-1.0.1.1-ubuntu18.04-x86_64.tgz"
-tar xvf MLNX_OFED_LINUX-4.6-1.0.1.1-ubuntu18.04-x86_64.tgz
-cd MLNX_OFED_LINUX-4.6-1.0.1.1-ubuntu18.04-x86_64
-sudo ./mlnxofedinstall --add-kernel-support --dpdk --upstream-libs # it's fine to see 'Failed to install libibverbs-dev DEB'
+cat /sys/devices/system/cpu/cpuidle/current_driver
+```
+It should be `intel_idle`. The `none` result means that the cpu is not supported by intel idle driver. However you could modify linux 5.4.0
+source code to make current cpu recognized by the driver.
+
+Fisrt check the cpu mode with
+```
+dmesg | grep intel_idle
+```
+Suppose the result is `intel_idle: does not run on family 6 model 106` where **106 (0x6A)** is cpu mode and
+**ICELAKE X** is microarchitecture codename. Then add related code to `linux/arch/x86/include/asm/intel-family.h` and
+`linux/drivers/idle/intel_idle.c` by referring to **SKYLAKE X**.
+
+3) Install Mellanox OFED.
+```
+wget "https://content.mellanox.com/ofed/MLNX_OFED-4.9-5.1.0.0/MLNX_OFED_LINUX-4.9-5.1.0.0-ubuntu20.04-x86_64.iso"
+sudo mount -o ro,loop MLNX_OFED_LINUX-4.9-5.1.0.0-ubuntu20.04-x86_64.iso /mnt
+sudo /mnt/mlnxofedinstall --add-kernel-support --dpdk --upstream-libs # it's fine to see 'Failed to install libibverbs-dev DEB'
 sudo /etc/init.d/openibd restart
 ```
 
-3) Install libraries and tools.
+4) Configure IB NIC.
+
+Switch mlx5 nic port to eth mode
+```
+sudo mstconfig -d <pci addr> set LINK_TYPE_P<port id>=2
+sudo mstfwreset -d <pci addr> -l3 -y reset
+```
+
+5) Install libraries and tools.
 ```
 echo Y | sudo apt-get --fix-broken install
 echo Y | sudo apt-get install libnuma-dev libmnl-dev libnl-3-dev libnl-route-3-dev
@@ -69,7 +89,7 @@ echo Y | sudo add-apt-repository ppa:ubuntu-toolchain-r/test
 echo Y | sudo apt-get purge cmake
 sudo pip install cmake
 ```
-4) Set bash as the default shell.
+6) Set bash as the default shell.
 ```
 chsh -s /bin/bash
 ```
@@ -77,7 +97,15 @@ chsh -s /bin/bash
 ### Build Shenango and AIFM (on all nodes)
 For all nodes, clone our github repo in a same path, say, your home directory. 
 
-AIFM relies on Shenango's threading and TCP runtime. The `build_all.sh` script in repo root compiles both Shenango and AIFM automatically.
+AIFM relies on Shenango's threading and TCP runtime.
+
+The ib device name should be hard coded with `strncmp(ibv_get_device_name(ib_dev), "mlx5", 4)` in
+file `runtime/net/directpath/mlx5/mlx5_init.c`.
+
+The ib device port should also be hard coded with `dp.port = 0` in file
+`shenango/iokernel/dpdk.c`.
+
+The `build_all.sh` script in repo root compiles both Shenango and AIFM automatically.
 ```
 ./build_all.sh
 ```
